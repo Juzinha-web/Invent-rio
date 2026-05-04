@@ -522,7 +522,7 @@ const USERS = {
 
 const SK = 'sf-v3';
 
-// ── DADOS PADRÃO ──
+// ── DADOS PADRÃO (SÓ USADOS NA PRIMEIRA VEZ) ──
 const DL = [{id:1,nome:'Sede — Matriz Centro',tipo:'sede'},{id:2,nome:'Base — Filial Norte',tipo:'base'}];
 const DT = [{id:'sede',nome:'Sede',cor:'sede'},{id:'base',nome:'Base/Filial',cor:'base'}];
 const DP = [
@@ -555,24 +555,63 @@ const DE = [
 ];
 
 // ── ESTADO ──
-let LOJAS=[...DL], TIPOS=[...DT], PRODS=DP.map(p=>({...p})), EST=DE.map(e=>({...e})), MOVS=[], INVS=[];
+let LOJAS, TIPOS, PRODS, EST, MOVS, INVS;
 let CURRENT_USER = null;
+
+// Função para inicializar com dados padrão
+function initDefaultData() {
+  LOJAS = DL.map(l => ({...l}));
+  TIPOS = DT.map(t => ({...t}));
+  PRODS = DP.map(p => ({...p}));
+  EST = DE.map(e => ({...e}));
+  MOVS = [];
+  INVS = [];
+}
 
 // ── STORAGE ──
 function save(){
-  try{localStorage.setItem(SK,JSON.stringify({lojas:LOJAS,tipos:TIPOS,prods:PRODS,est:EST,movs:MOVS,invs:INVS}));}catch(e){}
+  try{
+    const data = {
+      lojas: LOJAS,
+      tipos: TIPOS,
+      prods: PRODS,
+      est: EST,
+      movs: MOVS,
+      invs: INVS
+    };
+    localStorage.setItem(SK, JSON.stringify(data));
+    console.log('Dados salvos com sucesso!', data);
+  }catch(e){
+    console.error('Erro ao salvar:', e);
+    toast('⚠️ Erro ao salvar dados!');
+  }
 }
+
 function load(){
   try{
-    const r=localStorage.getItem(SK);if(!r)return;
-    const d=JSON.parse(r);
-    if(d.lojas&&d.lojas.length){LOJAS.length=0;LOJAS.push(...d.lojas);}
-    if(d.tipos&&d.tipos.length){TIPOS.length=0;TIPOS.push(...d.tipos);}
-    if(d.prods&&d.prods.length){PRODS.length=0;PRODS.push(...d.prods);}
-    if(d.est&&d.est.length){EST.length=0;EST.push(...d.est);}
-    if(d.movs){MOVS.length=0;MOVS.push(...d.movs);}
-    if(d.invs){INVS.length=0;INVS.push(...d.invs);}
-  }catch(e){console.warn('Erro ao carregar dados:',e);}
+    const r = localStorage.getItem(SK);
+    if(!r) {
+      console.log('Nenhum dado salvo, usando padrão');
+      initDefaultData();
+      return false;
+    }
+    const d = JSON.parse(r);
+    console.log('Dados carregados:', d);
+    
+    // Carrega os dados salvos
+    LOJAS = d.lojas && d.lojas.length ? d.lojas : DL.map(l => ({...l}));
+    TIPOS = d.tipos && d.tipos.length ? d.tipos : DT.map(t => ({...t}));
+    PRODS = d.prods && d.prods.length ? d.prods : DP.map(p => ({...p}));
+    EST = d.est && d.est.length ? d.est : DE.map(e => ({...e}));
+    MOVS = d.movs || [];
+    INVS = d.invs || [];
+    
+    return true;
+  }catch(e){
+    console.warn('Erro ao carregar dados:', e);
+    initDefaultData();
+    return false;
+  }
 }
 
 // ── HELPERS ──
@@ -607,13 +646,16 @@ function dologin(){
     sessionStorage.setItem('sfu',u);
     document.getElementById('ls').style.display='none';
     document.getElementById('app').classList.add('v');
-    setUD(u);load();initApp();
+    setUD(u);
+    load(); // Carrega dados do localStorage
+    initApp();
   }else{er.style.display='block';}
 }
 document.getElementById('lp').addEventListener('keydown',e=>{if(e.key==='Enter')dologin();});
 document.getElementById('lu').addEventListener('keydown',e=>{if(e.key==='Enter')dologin();});
 
 function dologout(){
+  save(); // Salva antes de sair
   CURRENT_USER=null;
   sessionStorage.removeItem('sfu');
   document.getElementById('app').classList.remove('v');
@@ -632,10 +674,6 @@ function setUD(u){
 
 // ── NAV ──
 const PGT={dashboard:'Dashboard',estoque:'Estoque Atual',movs:'Movimentações',inv:'Inventário',trans:'Transferência entre Lojas',alertas:'Alertas de Estoque',rel:'Relatórios',cfg:'Configurações'};
-document.querySelectorAll('.ni[data-pg]').forEach(b=>b.addEventListener('click',()=>{
-  if(!canAccess(b.dataset.pg))return;
-  nav(b.dataset.pg);
-}));
 
 function nav(pg){
   if(!canAccess(pg)) return;
@@ -648,33 +686,40 @@ function nav(pg){
   fns[pg]?.();
 }
 
-// ── PERMISSÕES: ESCONDER MENU E IR PARA PÁGINA INICIAL ──
+// Configurar navegação
+document.querySelectorAll('.ni[data-pg]').forEach(b=>b.addEventListener('click',()=>{
+  if(!canAccess(b.dataset.pg))return;
+  nav(b.dataset.pg);
+}));
+
+// ── PERMISSÕES ──
 function applyPermissions(){
   const pages=USERS[CURRENT_USER]?.pages||[];
-  // Esconde itens de nav sem permissão
   document.querySelectorAll('.ni[data-role="admin"]').forEach(el=>{
     el.classList.toggle('hidden', !pages.includes('dashboard'));
   });
   document.querySelectorAll('[data-role="admin"]').forEach(el=>{
     if(el.tagName!=='BUTTON') el.style.display = pages.includes('dashboard')?'':'none';
   });
-  // Barra de busca só para admin
   const sw=document.getElementById('search-wrap');
   if(sw) sw.style.display=pages.includes('dashboard')?'flex':'none';
-  // Vai direto para cfg se for colaborador
   const startPage=pages[0]||'cfg';
   nav(startPage);
 }
 
 // ── INIT ──
 function initApp(){
-  popLjSels();popPrSels();rnSbLj();
+  popLjSels();
+  popPrSels();
+  rnSbLj();
   applyPermissions();
   document.getElementById('gsearch').addEventListener('input',filtEst);
   ['fLoja','fCat','fSt'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener('change',filtEst);
   });
+  // Salva após inicializar
+  save();
 }
 
 // Auto-login
@@ -684,7 +729,12 @@ function initApp(){
     CURRENT_USER=u;
     document.getElementById('ls').style.display='none';
     document.getElementById('app').classList.add('v');
-    setUD(u);load();initApp();
+    setUD(u);
+    load(); // Carrega dados do localStorage
+    initApp();
+  } else {
+    // Se não tem sessão, inicializa com dados padrão
+    initDefaultData();
   }
 })();
 
@@ -883,7 +933,6 @@ function rnInv(){
     const l=gL(inv.lj);const dc=inv.div>0?'tg-rd':'tg-gr';
     return `<tr><td>${inv.dt}</td><td>${l?.nome||'?'}</td><td><span class="tg tg-gr tg-dot">Concluído</span></td><td>${inv.conf}</td><td><span class="tg ${dc}">${inv.div}</span></td><td>${inv.col||'—'}</td><td><button class="btn btn-o btn-xs">Detalhes</button></td></tr>`;
   }).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:22px">Nenhum inventário realizado.</td></tr>';
-  // Popular select de loja no modal
   const s=document.getElementById('i-loja');
   s.innerHTML='<option value="">Selecione</option>'+LOJAS.map(l=>`<option value="${l.id}">${l.nome}</option>`).join('');
 }
@@ -1132,7 +1181,11 @@ function confDelLoja(id){
 
 // ── PRODUTOS CRUD ──
 function rnPLojas(existingId){
-  const w=document.getElementById('p-lojas-sel');if(!w)return;
+  const w=document.getElementById('p-lojas-sel');
+  if(!w) {
+    console.error('Elemento p-lojas-sel não encontrado!');
+    return;
+  }
   w.innerHTML=LOJAS.map(l=>{
     const ex=existingId?gE(l.id,existingId):null;
     const qtdVal=ex?ex.qtd:0;
@@ -1145,8 +1198,12 @@ function rnPLojas(existingId){
       <input type="text" class="fc plj-loc" data-ljid="${l.id}" value="${locVal}" placeholder="Local" style="width:85px;padding:5px 7px;font-size:11.5px"/>
     </div>`;
   }).join('')||'<p style="color:var(--mu);font-size:12px">Nenhuma loja cadastrada.</p>';
+  
+  console.log('Lojas renderizadas:', w.innerHTML);
 }
+
 function abrProd(){
+  console.log('abrProd chamada');
   document.getElementById('prod-eid').value='';
   document.getElementById('p-cod').value='';
   document.getElementById('p-nome').value='';
@@ -1160,8 +1217,10 @@ function abrProd(){
   rnPLojas(null);
   oM('m-prod');
 }
+
 function edProd(id){
   const p=gP(id);if(!p)return;
+  console.log('edProd:', id, p);
   document.getElementById('prod-eid').value=p.id;
   document.getElementById('p-cod').value=p.cod;
   document.getElementById('p-nome').value=p.nome;
@@ -1175,7 +1234,9 @@ function edProd(id){
   rnPLojas(id);
   oM('m-prod');
 }
+
 function sbProd(){
+  console.log('sbProd chamada');
   const eid=document.getElementById('prod-eid').value;
   const cod=document.getElementById('p-cod').value.trim().toUpperCase();
   const nome=document.getElementById('p-nome').value.trim();
@@ -1184,7 +1245,9 @@ function sbProd(){
   const min=Number(document.getElementById('p-min').value)||0;
   const preco=Number(document.getElementById('p-preco').value)||0;
   const col=document.getElementById('p-col').value.trim();
+  
   if(!cod||!nome||!cat){toast('⚠️ Preencha Código, Nome e Categoria.');return;}
+  
   let pid;
   if(eid){
     pid=Number(eid);
@@ -1196,14 +1259,21 @@ function sbProd(){
     PRODS.push({id:pid,cod,nome,cat,un,min,preco,col});
     toast(`✅ Produto "${nome}" adicionado.`);
   }
+  
   // Salvar estoque por loja com base nos checkboxes
-  document.querySelectorAll('#p-lojas-sel .plj-chk').forEach(chk=>{
+  const chks = document.querySelectorAll('#p-lojas-sel .plj-chk');
+  console.log('Checkboxes encontrados:', chks.length);
+  
+  chks.forEach(chk=>{
     const ljid=Number(chk.dataset.ljid);
     const qtdEl=document.querySelector(`#p-lojas-sel .plj-qtd[data-ljid="${ljid}"]`);
     const locEl=document.querySelector(`#p-lojas-sel .plj-loc[data-ljid="${ljid}"]`);
     const qtd=Number(qtdEl?.value||0);
     const loc=(locEl?.value||'').trim()||'—';
     const exIdx=EST.findIndex(e=>e.lj===ljid&&e.pr===pid);
+    
+    console.log(`Loja ${ljid}: qtd=${qtd}, loc=${loc}, checked=${chk.checked}, existente=${exIdx}`);
+    
     if(chk.checked){
       if(exIdx>-1){EST[exIdx].qtd=qtd;EST[exIdx].loc=loc;}
       else EST.push({lj:ljid,pr:pid,qtd,loc});
@@ -1211,7 +1281,16 @@ function sbProd(){
       if(exIdx>-1) EST.splice(exIdx,1);
     }
   });
-  cM('m-prod');save();rnTbProds();rnDash();popPrSels();updDlCats();
+  
+  cM('m-prod');
+  save(); // SALVA APÓS ADICIONAR/EDITAR PRODUTO
+  rnTbProds();
+  rnDash();
+  popPrSels();
+  updDlCats();
+  
+  console.log('Produto salvo. Total de produtos:', PRODS.length);
+  console.log('Estoque atual:', EST);
 }
 function confDelProd(id){
   const p=gP(id);
@@ -1250,8 +1329,19 @@ function rnSbLj(){
 }
 
 // ── MODALS ──
-function oM(id){const el=document.getElementById(id);if(el)el.classList.add('op');}
-function cM(id){const el=document.getElementById(id);if(el)el.classList.remove('op');}
+function oM(id){
+  const el=document.getElementById(id);
+  if(el) {
+    console.log('Abrindo modal:', id);
+    el.classList.add('op');
+  } else {
+    console.error('Modal não encontrado:', id);
+  }
+}
+function cM(id){
+  const el=document.getElementById(id);
+  if(el) el.classList.remove('op');
+}
 document.querySelectorAll('.mb').forEach(b=>{b.addEventListener('click',e=>{if(e.target===b)b.classList.remove('op');});});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.mb.op').forEach(m=>m.classList.remove('op'));});
 
