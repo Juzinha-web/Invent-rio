@@ -182,10 +182,6 @@ textarea.fc{resize:vertical;min-height:72px;line-height:1.5}
 .lp-sede{background:var(--acl);color:var(--ac2)}
 .lp-base{background:var(--cyl);color:var(--cy)}
 .lp-other{background:var(--grl);color:var(--gr)}
-
-/* ACESSO NEGADO */
-#acesso-negado{display:none;flex:1;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:var(--mu)}
-#acesso-negado.show{display:flex}
 </style>
 </head>
 <body>
@@ -634,16 +630,23 @@ function setUD(u){
   document.getElementById('urole').textContent=usr.role;
 }
 
-// Auto-login
-(function(){
-  const u=sessionStorage.getItem('sfu');
-  if(u&&USERS[u]){
-    CURRENT_USER=u;
-    document.getElementById('ls').style.display='none';
-    document.getElementById('app').classList.add('v');
-    setUD(u);load();initApp();
-  }
-})();
+// ── NAV ──
+const PGT={dashboard:'Dashboard',estoque:'Estoque Atual',movs:'Movimentações',inv:'Inventário',trans:'Transferência entre Lojas',alertas:'Alertas de Estoque',rel:'Relatórios',cfg:'Configurações'};
+document.querySelectorAll('.ni[data-pg]').forEach(b=>b.addEventListener('click',()=>{
+  if(!canAccess(b.dataset.pg))return;
+  nav(b.dataset.pg);
+}));
+
+function nav(pg){
+  if(!canAccess(pg)) return;
+  document.querySelectorAll('.ni').forEach(b=>b.classList.remove('on'));
+  const b=document.querySelector(`.ni[data-pg="${pg}"]`);if(b)b.classList.add('on');
+  document.querySelectorAll('.p').forEach(p=>p.classList.remove('on'));
+  const pageEl=document.getElementById(`p-${pg}`);if(pageEl)pageEl.classList.add('on');
+  document.getElementById('pgtitle').textContent=PGT[pg]||pg;
+  const fns={dashboard:rnDash,estoque:rnEst,movs:rnMovs,alertas:rnAl,cfg:rnCfg,inv:rnInv};
+  fns[pg]?.();
+}
 
 // ── PERMISSÕES: ESCONDER MENU E IR PARA PÁGINA INICIAL ──
 function applyPermissions(){
@@ -663,24 +666,6 @@ function applyPermissions(){
   nav(startPage);
 }
 
-// ── NAV ──
-const PGT={dashboard:'Dashboard',estoque:'Estoque Atual',movs:'Movimentações',inv:'Inventário',trans:'Transferência entre Lojas',alertas:'Alertas de Estoque',rel:'Relatórios',cfg:'Configurações'};
-document.querySelectorAll('.ni[data-pg]').forEach(b=>b.addEventListener('click',()=>{
-  if(!canAccess(b.dataset.pg))return;
-  nav(b.dataset.pg);
-}));
-
-function nav(pg){
-  if(!canAccess(pg)) return;
-  document.querySelectorAll('.ni').forEach(b=>b.classList.remove('on'));
-  const b=document.querySelector(`.ni[data-pg="${pg}"]`);if(b)b.classList.add('on');
-  document.querySelectorAll('.p').forEach(p=>p.classList.remove('on'));
-  const pageEl=document.getElementById(`p-${pg}`);if(pageEl)pageEl.classList.add('on');
-  document.getElementById('pgtitle').textContent=PGT[pg]||pg;
-  const fns={dashboard:rnDash,estoque:rnEst,movs:rnMovs,alertas:rnAl,cfg:rnCfg,inv:rnInv};
-  fns[pg]?.();
-}
-
 // ── INIT ──
 function initApp(){
   popLjSels();popPrSels();rnSbLj();
@@ -691,6 +676,17 @@ function initApp(){
     if(el) el.addEventListener('change',filtEst);
   });
 }
+
+// Auto-login
+(function(){
+  const u=sessionStorage.getItem('sfu');
+  if(u&&USERS[u]){
+    CURRENT_USER=u;
+    document.getElementById('ls').style.display='none';
+    document.getElementById('app').classList.add('v');
+    setUD(u);load();initApp();
+  }
+})();
 
 // ── DASHBOARD ──
 function rnDash(){
@@ -1152,7 +1148,10 @@ function rnPLojas(existingId){
 }
 function abrProd(){
   document.getElementById('prod-eid').value='';
-  ['p-cod','p-nome','p-cat','p-col'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('p-cod').value='';
+  document.getElementById('p-nome').value='';
+  document.getElementById('p-cat').value='';
+  document.getElementById('p-col').value='';
   document.getElementById('p-min').value='5';
   document.getElementById('p-preco').value='0.00';
   document.getElementById('p-un').value='UN';
@@ -1173,7 +1172,7 @@ function edProd(id){
   document.getElementById('p-col').value=p.col||'';
   document.getElementById('m-prod-title').textContent='Editar Produto';
   document.getElementById('btn-prod-sb').textContent='Salvar Alterações';
-  rnPLojas(id); // passa o id para preencher qtd/loc já existentes
+  rnPLojas(id);
   oM('m-prod');
 }
 function sbProd(){
